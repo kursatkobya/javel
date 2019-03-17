@@ -65,6 +65,19 @@ static int test_can_open_close(struct fixture *fx)
     return 0;
 }
 
+static int test_can_write(struct fixture *fx) {
+    (void) fx;
+
+    struct tree_object tree = { 0 };
+
+    tree_object_new(&tree);
+    tree_object_add_entry(&tree,
+                          0644,
+                          "9e872b38b7e8af16a6abdfc15bf181744c51e3c0",
+                          "test_entry");
+    return 0;
+}
+
 
 int main(int argc, char **argv) {
     (void) argc;
@@ -80,6 +93,9 @@ int main(int argc, char **argv) {
         };
 
         TEST_DEFAULT(test_can_open_close, &fx);
+        TEST_DEFAULT(test_can_write, &fx);
         free(fx.git_dir);
     }
+
+    return 0;
 }

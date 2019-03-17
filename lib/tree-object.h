@@ -6,6 +6,7 @@ struct tree_leaf {
     char *mode;
     char *path;
     char hash[41];
+    uint8_t hash_raw[20];
 };
 
 struct tree_object {
@@ -19,3 +20,12 @@ int tree_object_open(struct tree_object *obj,
                      const char *hash);
 
 int tree_object_close(struct tree_object *obj);
+
+int tree_object_write(struct tree_object *obj, const char *git_dir);
+
+int tree_object_new(struct tree_object *obj);
+
+int tree_object_add_entry(struct tree_object *obj,
+                          mode_t mode,
+                          const char *hash,
+                          const char *path);

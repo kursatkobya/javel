@@ -92,6 +92,10 @@ static int parse_object_header(struct object *obj,
     return endptr - buf;
 }
 
+const char *object_type_string(enum object_type type) {
+    return object_type_strings[type];
+}
+
 int object_open(struct object *obj,
                 const char *git_dir,
                 const char *hash,
@@ -224,57 +228,32 @@ ssize_t object_read(struct object *obj, uint8_t *buf, size_t count) {
     return read_sz;
 }
 
-const char *object_type_string(enum object_type type) {
-    return object_type_strings[type];
-}
-
-char *object_write(struct object *obj,
-                   enum object_type type,
-                   const char *file,
-                   int write_to_db)
+static char *object_write_buf(struct object *obj,
+                              uint8_t *buffer_in,
+                              ssize_t buffer_in_sz,
+                              int write_to_db)
 {
     SHA1_CTX context;
-    char header[MIN_OBJECT_HEADER_SZ] = { 0 };
     uint8_t digest[20] = { 0 };
-    uint8_t *buffer_in, *buffer_out;
+    uint8_t *buffer_out;
     char digest_string[41];
-    ssize_t header_sz = 0;
-    int fd;
     int ret;
     int buffer_out_used;
 
     setup_zlib_deflate(obj, 6);
 
-    ssize_t buffer_in_sz = file_size(file);
     /* This should be calculated better ..*/
     ssize_t buffer_out_sz = buffer_in_sz * 2;
     if (buffer_in_sz < 0) {
         return NULL;
     }
 
-    fd = open(file, O_RDONLY);
-    if (fd < 0) {
-        ERROR("Can't open %s: %s", file, strerror(errno));
-        return NULL;
-    }
-
-    header_sz = snprintf((char*)header, MIN_OBJECT_HEADER_SZ, "%s %ld",
-                         object_type_string(type), buffer_in_sz);
-    buffer_in_sz += header_sz;
-
-    buffer_in = malloc(buffer_in_sz + 1);
     buffer_out = malloc(buffer_out_sz);
-    if (!buffer_in || !buffer_out) {
+    if (!buffer_out) {
         ERROR("Failed to allocate memory for object compression");
-        free(buffer_in);
         free(buffer_out);
         return NULL;
     }
-
-    strncpy((char*)buffer_in, header, header_sz);
-
-    assert(read(fd, buffer_in + header_sz + 1, buffer_in_sz - header_sz) ==
-           buffer_in_sz - header_sz);
 
     obj->strm_def.avail_in = buffer_in_sz;
     obj->strm_def.next_in = buffer_in;
@@ -301,9 +280,50 @@ char *object_write(struct object *obj,
         }
     }
 
-    free(buffer_in);
     free(buffer_out);
     deflateEnd(&obj->strm_def);
 
     return strdup(digest_string);
+}
+
+char *object_write(struct object *obj,
+                   enum object_type type,
+                   const char *file,
+                   int write_to_db)
+{
+    char header[MIN_OBJECT_HEADER_SZ] = { 0 };
+    uint8_t *buffer_in;
+    ssize_t header_sz = 0;
+    int fd;
+
+    ssize_t buffer_in_sz = file_size(file);
+
+    if (buffer_in_sz < 0) {
+        return NULL;
+    }
+
+    fd = open(file, O_RDONLY);
+    if (fd < 0) {
+        ERROR("Can't open %s: %s", file, strerror(errno));
+        return NULL;
+    }
+
+    header_sz = snprintf((char*)header, MIN_OBJECT_HEADER_SZ, "%s %ld",
+                         object_type_string(type), buffer_in_sz);
+    buffer_in_sz += header_sz;
+
+    buffer_in = malloc(buffer_in_sz + 1);
+    if (!buffer_in) {
+        ERROR("Failed to allocate memory for object compression");
+        free(buffer_in);
+        return NULL;
+    }
+
+    strncpy((char*)buffer_in, header, header_sz);
+    buffer_in[header_sz] = '\0';
+
+    assert(read(fd, buffer_in + header_sz + 1, buffer_in_sz - header_sz) ==
+           buffer_in_sz - header_sz);
+
+    return object_write_buf(obj, buffer_in, buffer_in_sz, write_to_db);
 }

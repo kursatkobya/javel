@@ -20,6 +20,7 @@ static int parse_leaf(uint8_t *buf, size_t buf_sz, struct tree_leaf *leaf) {
     for (; buf[bufi] != '\0' && bufi < buf_sz; bufi++);
     bufi++;
     SHA1DigestString(buf + bufi, leaf->hash);
+    memcpy(leaf->hash_raw, buf + bufi, 20);
 
     return bufi + 20;
 }
@@ -95,5 +96,39 @@ int tree_object_close(struct tree_object *obj)
 
     free(obj->leaves);
 
+    return 0;
+}
+int tree_object_write(struct tree_object *obj, const char *git_dir) {
+    (void)git_dir;
+
+    uint8_t *buf = malloc(obj->num_leaves * (PATH_MAX + 60));
+    size_t buf_off;
+    for (size_t i = 0; i < obj->num_leaves; i++) {
+        struct tree_leaf *leaf = &obj->leaves[i];
+        buf_off += snprintf((char*)buf + buf_off, PATH_MAX + 60, "%s %s",
+                            leaf->mode, leaf->path);
+        buf_off++;
+        memcpy(buf + buf_off, leaf->hash_raw, 20);
+        buf_off += 20;
+    }
+    free(buf);
+
+    return 0;
+}
+
+int tree_object_new(struct tree_object *obj) {
+    (void)obj;
+    return 0;
+}
+
+int tree_object_add_entry(struct tree_object *obj,
+                          mode_t mode,
+                          const char *hash,
+                          const char *path)
+{
+    (void)obj;
+    (void)mode;
+    (void)hash;
+    (void)path;
     return 0;
 }
